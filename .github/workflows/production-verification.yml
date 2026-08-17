@@ -113,25 +113,37 @@ jobs:
 
       - name: Dockerized E2E Flow (Playwright / REST)
         run: |
-          # A script to run full E2E through dockerized API/Web
-          # pnpm run test:e2e
           echo "Full Dockerized E2E executing..."
-          # Since full E2E scripts are not provided in the repo, we simulate the verification API check
-          curl --fail --silent http://localhost:3001/api/docs > /dev/null
+          node tests/e2e/docker-e2e.mjs
 
       - name: Failure Recovery Test
         run: |
           echo "Simulating ML Service Failure..."
           docker compose stop ml-service
-          # Validate worker survival (Worker health check/metrics)
-          curl --fail --silent http://localhost:3001/health/live > /dev/null
+          
+          # Run the failure test which submits a job and waits for failure state
+          node tests/e2e/failure-test.mjs
+          
           echo "Restoring ML Service..."
           docker compose start ml-service
+          
+          echo "Waiting for ML Service to be healthy..."
+          sleep 10
 
       - name: Observability Validation
         run: |
-          # Fetch Prometheus metrics and verify presence
-          curl --fail --silent http://localhost:3001/metrics | grep 'worker_' > /dev/null
+          echo "Verifying Observability Metrics..."
+          METRICS=$(curl --fail --silent http://localhost:3001/metrics)
+          if ! echo "$METRICS" | grep -q 'worker_jobs_processed_total'; then
+            echo "Error: worker_jobs_processed_total metric is missing!"
+            exit 1
+          fi
+          
+          if ! echo "$METRICS" | grep -q 'worker_job_duration_seconds'; then
+            echo "Error: worker_job_duration_seconds metric is missing!"
+            exit 1
+          fi
+          echo "Observability Validation Passed."
 
       - name: Docker Logs on Failure
         if: failure()

@@ -75,7 +75,7 @@ services:
     environment:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
-      DATABASE_URL: postgresql://${POSTGRES_USER:-nexus_user}:${POSTGRES_PASSWORD:-nexus_password}@postgres:5432/${POSTGRES_DB:-nexus_db}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nexus_user}:${POSTGRES_PASSWORD:-nexus_password}@postgres:5432/${POSTGRES_DB:-nexus}?schema=public
       REDIS_URL: redis://redis:6379
     ports:
       - "${API_PORT:-3001}:3001"
@@ -84,16 +84,26 @@ services:
       redis:    { condition: service_healthy }
 
   # ── Next.js Frontend ────────────────────────────────────────────────────────
-  # Uncomment when web app is complete (Phase 9+)
-  # web:
-  #   build:
-  #     context: .
-  #     dockerfile: infrastructure/docker/web.Dockerfile
-  #     target: runner
-  #   container_name: nexus-web
-  #   ports:
-  #     - "${WEB_PORT:-3000}:3000"
-  #   depends_on: [api]
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/web.Dockerfile
+      target: runner
+    container_name: nexus-web
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      API_URL: http://api:3001
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   # ── Workers ─────────────────────────────────────────────────────────────────
   # Uncomment when worker implementation is complete (Phase 6+)
@@ -108,13 +118,18 @@ services:
     environment:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
-      DATABASE_URL: postgresql://${POSTGRES_USER:-nexus_user}:${POSTGRES_PASSWORD:-nexus_password}@postgres:5432/${POSTGRES_DB:-nexus_db}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nexus_user}:${POSTGRES_PASSWORD:-nexus_password}@postgres:5432/${POSTGRES_DB:-nexus}?schema=public
       REDIS_URL: redis://redis:6379
       ML_SERVICE_URL: http://ml-service:8000
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-super-secret-internal-key-for-ml-service}
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep node || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ── ML Service ──────────────────────────────────────────────────────────────
   ml-service:
@@ -126,6 +141,11 @@ services:
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-super-secret-internal-key-for-ml-service}
     ports:
       - "${ML_SERVICE_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ── Observability ───────────────────────────────────────────────────────────
   prometheus:
