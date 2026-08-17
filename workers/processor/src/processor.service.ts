@@ -182,10 +182,8 @@ export class ProcessorService extends WorkerHost implements OnModuleInit, OnModu
               } catch (e) {
                 this.logger.warn(`Failed to parse stream line: ${line}`, e);
               }
-              }
             }
           }
-
           if (!finalResult) {
             throw new Error('Stream completed but no final result was received');
           }
@@ -218,10 +216,10 @@ export class ProcessorService extends WorkerHost implements OnModuleInit, OnModu
           this.logger.log(`Job ${dbJobId} completed successfully`);
           return finalResult;
         } catch (error) {
-          status = 'failed';
-          this.logger.error(`Job ${dbJobId} failed:`, error);
-          span.recordException(error);
-          span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error(`Job ${dbJobId} failed:`, error instanceof Error ? error.stack : String(error));
+          span.recordException(error as Error);
+          span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
           
           const attempt = dbJob.attempts + 1; // +1 because we incremented at the start
           const isExhausted = attempt >= dbJob.maxAttempts;
