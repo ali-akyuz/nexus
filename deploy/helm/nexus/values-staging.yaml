@@ -1,0 +1,60 @@
+global:
+  environment: "staging"
+
+ingress:
+  enabled: true
+  hosts:
+    - host: nexus.staging.local
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            serviceName: nexus-web
+            servicePort: 3000
+    - host: api.nexus.staging.local
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            serviceName: nexus-api
+            servicePort: 3001
+
+web:
+  replicaCount: 2
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+api:
+  replicaCount: 2
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+worker:
+  replicaCount: 2
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+mlService:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi

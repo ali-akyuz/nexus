@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus-processor
+  labels:
+    app: nexus-processor
+spec:
+  replicas: {{ .Values.worker.replicaCount }}
+  selector:
+    matchLabels:
+      app: nexus-processor
+  template:
+    metadata:
+      labels:
+        app: nexus-processor
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: processor
+          image: "{{ .Values.worker.image.repository }}:{{ .Values.global.imageTag }}"
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: nexus-config
+            - secretRef:
+                name: nexus-secrets
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}

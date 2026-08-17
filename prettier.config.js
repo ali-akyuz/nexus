@@ -1,0 +1,22 @@
+/** @type {import("prettier").Config} */
+module.exports = {
+  semi: true,
+  singleQuote: true,
+  trailingComma: 'all',
+  printWidth: 100,
+  tabWidth: 2,
+  useTabs: false,
+  bracketSpacing: true,
+  arrowParens: 'always',
+  endOfLine: 'lf',
+  overrides: [
+    {
+      files: '*.json',
+      options: { trailingComma: 'none' },
+    },
+    {
+      files: ['*.md', '*.yml', '*.yaml'],
+      options: { proseWrap: 'preserve' },
+    },
+  ],
+};

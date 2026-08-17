@@ -1,0 +1,120 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String
+  firstName    String?
+  lastName     String?
+  role         Role      @default(USER)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  refreshTokens RefreshToken[]
+  jobs          Job[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  tokenHash String    @unique
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+enum JobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum WorkerStatus {
+  ONLINE
+  IDLE
+  BUSY
+  OFFLINE
+}
+
+enum JobPriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+model WorkerNode {
+  id            String       @id @default(uuid()) @db.Uuid
+  name          String       @unique
+  status        WorkerStatus @default(OFFLINE)
+  currentJobId  String?      @db.Uuid
+  lastHeartbeat DateTime     @default(now())
+  jobsProcessed Int          @default(0)
+  jobsFailed    Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  jobs Job[]
+
+  @@map("worker_nodes")
+}
+
+model Job {
+  id             String      @id @default(uuid()) @db.Uuid
+  userId         String      @db.Uuid
+  idempotencyKey String?     @db.VarChar(255)
+  type           String      @db.VarChar(255)
+  status         JobStatus   @default(QUEUED)
+  priority       JobPriority @default(NORMAL)
+  payload        Json        @default("{}")
+  result         Json?
+  error          String?     @db.Text
+  progress       Int         @default(0)
+  attempts       Int         @default(0)
+  maxAttempts    Int         @default(3)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  startedAt      DateTime?
+  completedAt    DateTime?
+
+  workerId String? @db.Uuid
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  worker WorkerNode? @relation(fields: [workerId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, idempotencyKey])
+  @@index([status])
+  @@index([createdAt])
+  @@index([workerId])
+  @@index([type])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("jobs")
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@repo/worker-analytics",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NEXUS Analytics Worker — consumes analytics queue",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node -r tsconfig-paths/register src/main.ts",
+    "start": "node dist/main",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src/",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@repo/config": "workspace:*",
+    "@repo/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.4",
+    "rimraf": "^6.0.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.5.0"
+  }
+}

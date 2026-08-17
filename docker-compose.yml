@@ -1,0 +1,178 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# NEXUS — Docker Compose (Local Development)
+#
+# Phase 1: PostgreSQL + Redis (infrastructure only).
+# Application services (api, web, workers, ml-service) are included as build
+# targets but commented out until their Dockerfiles are production-ready.
+#
+# Usage:
+#   docker compose up -d postgres redis      # Start infrastructure only
+#   docker compose up -d                      # Start all services (Phase 2+)
+#   docker compose down                       # Stop services
+#   docker compose down -v                    # Stop and wipe volumes (data loss!)
+#   docker compose logs -f postgres           # Tail postgres logs
+#   docker compose ps                         # Service status
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: nexus-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nexus}
+      POSTGRES_USER: ${POSTGRES_USER:-nexus_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexus_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-nexus_user} -d ${POSTGRES_DB:-nexus}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: nexus-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy noeviction
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # ── NestJS API ──────────────────────────────────────────────────────────────
+  # Uncomment when Prisma schema and full API are ready (Phase 3+)
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+      target: runner
+    container_name: nexus-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nexus_user}:${POSTGRES_PASSWORD:-nexus_password}@postgres:5432/${POSTGRES_DB:-nexus_db}?schema=public
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "${API_PORT:-3001}:3001"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+
+  # ── Next.js Frontend ────────────────────────────────────────────────────────
+  # Uncomment when web app is complete (Phase 9+)
+  # web:
+  #   build:
+  #     context: .
+  #     dockerfile: infrastructure/docker/web.Dockerfile
+  #     target: runner
+  #   container_name: nexus-web
+  #   ports:
+  #     - "${WEB_PORT:-3000}:3000"
+  #   depends_on: [api]
+
+  # ── Workers ─────────────────────────────────────────────────────────────────
+  # Uncomment when worker implementation is complete (Phase 6+)
+  worker-processor:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/worker-processor.Dockerfile
+      target: runner
+    container_name: nexus-worker-processor
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nexus_user}:${POSTGRES_PASSWORD:-nexus_password}@postgres:5432/${POSTGRES_DB:-nexus_db}?schema=public
+      REDIS_URL: redis://redis:6379
+      ML_SERVICE_URL: http://ml-service:8000
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-super-secret-internal-key-for-ml-service}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+
+  # ── ML Service ──────────────────────────────────────────────────────────────
+  ml-service:
+    build:
+      context: ./apps/ml-service
+      dockerfile: Dockerfile
+    container_name: nexus-ml-service
+    environment:
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-super-secret-internal-key-for-ml-service}
+    ports:
+      - "${ML_SERVICE_PORT:-8000}:8000"
+
+  # ── Observability ───────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: nexus-prometheus
+    volumes:
+      - ./infrastructure/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: nexus-jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686" # UI
+      - "4318:4318"   # OTLP HTTP
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: nexus-grafana
+    volumes:
+      - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./infrastructure/monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    ports:
+      - "3002:3000"
+    depends_on:
+      - prometheus
+      - jaeger
+    restart: unless-stopped
+
+# ── Volumes ─────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ── Network ──────────────────────────────────────────────────────────────────
+networks:
+  default:
+    name: nexus-network
+    driver: bridge

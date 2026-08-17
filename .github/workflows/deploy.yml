@@ -1,0 +1,49 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      tag:
+        description: 'Image tag to deploy (e.g. v1.0.0)'
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Configure Kubernetes Credentials
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Deploy Helm Chart
+        run: |
+          helm upgrade --install nexus deploy/helm/nexus \
+            --namespace nexus-${{ inputs.environment }} \
+            --create-namespace \
+            -f deploy/helm/nexus/values-${{ inputs.environment }}.yaml \
+            --set global.imageTag=${{ inputs.tag }} \
+            --set secrets.databaseUrl=${{ secrets.DATABASE_URL }} \
+            --set secrets.redisUrl=${{ secrets.REDIS_URL }} \
+            --set secrets.jwtAccessSecret=${{ secrets.JWT_ACCESS_SECRET }} \
+            --set secrets.jwtRefreshSecret=${{ secrets.JWT_REFRESH_SECRET }} \
+            --wait \
+            --timeout 5m

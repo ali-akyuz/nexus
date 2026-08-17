@@ -1,0 +1,68 @@
+global:
+  imageTag: "latest"
+  environment: "development"
+
+secrets:
+  databaseUrl: ""
+  redisUrl: ""
+  jwtAccessSecret: ""
+  jwtRefreshSecret: ""
+  mlServiceInternalKey: "super-secret-internal-key-for-ml-service"
+
+ingress:
+  enabled: false
+  className: "nginx"
+  hosts:
+    - host: nexus.local
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            serviceName: nexus-web
+            servicePort: 3000
+    - host: api.nexus.local
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            serviceName: nexus-api
+            servicePort: 3001
+  tls: []
+
+web:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/nexus-web
+    pullPolicy: IfNotPresent
+  resources: {}
+
+api:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/nexus-api
+    pullPolicy: IfNotPresent
+  resources: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 80
+
+worker:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/nexus-processor
+    pullPolicy: IfNotPresent
+  resources: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+
+mlService:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/nexus-ml-service
+    pullPolicy: IfNotPresent
+  resources: {}

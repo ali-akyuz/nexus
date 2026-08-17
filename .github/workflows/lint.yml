@@ -1,0 +1,53 @@
+name: CI — Lint
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint-node:
+    name: Lint Node.js workspaces
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run ESLint + Prettier check
+        run: pnpm turbo run lint format:check
+
+      - name: Run TypeScript type check
+        run: pnpm turbo run type-check
+
+  lint-python:
+    name: Lint Python (ml-service)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install linting tools
+        run: pip install ruff mypy
+
+      - name: Run Ruff
+        working-directory: apps/ml-service
+        run: ruff check .
+
+      - name: Run mypy
+        working-directory: apps/ml-service
+        run: mypy app/

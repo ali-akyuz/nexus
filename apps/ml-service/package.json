@@ -1,0 +1,11 @@
+{
+  "name": "@repo/ml-service",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "pytest",
+    "lint": "echo 'No python linting configured'",
+    "build": "echo 'No build step required for python'",
+    "dev": "uvicorn app.main:app --reload --port 8000"
+  }
+}

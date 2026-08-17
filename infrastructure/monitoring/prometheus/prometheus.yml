@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: 'nexus-api'
+    static_configs:
+      - targets: ['api:3001']
+
+  - job_name: 'nexus-worker'
+    static_configs:
+      - targets: ['worker-processor:3002']
+
+  - job_name: 'nexus-ml-service'
+    static_configs:
+      - targets: ['ml-service:8000']

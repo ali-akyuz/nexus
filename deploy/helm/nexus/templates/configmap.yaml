@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nexus-config
+  labels:
+    app: nexus
+data:
+  NODE_ENV: {{ .Values.global.environment | quote }}
+  ML_SERVICE_URL: "http://nexus-ml-service:8000"
+  API_URL: "http://nexus-api:3001"
